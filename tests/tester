@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+sh ../vendor/bin/tester Imap -s -j 40 -log imap.log $@
+rm "./tmp" -f -R
