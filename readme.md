@@ -9,7 +9,7 @@ Simple IMAP wrapper.
 
 ## Install
 ```sh
-$ composer require minetro/forms:~1.0.0
+$ composer require minetro/forms:~1.1.0
 ```
 
 ## Usage
