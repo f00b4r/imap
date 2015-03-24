@@ -106,7 +106,7 @@ final class ImapReader
             $sections = [];
             if (isset($structure->parts)) {
                 foreach ($structure->parts as $partnum => $part) {
-                    $sections[] = imap_fetchbody($this->imap, $mailnum, $part);
+                    $sections[] = imap_fetchbody($this->imap, $mailnum, $partnum);
                 }
             } else {
                 $sections[] = imap_body($this->imap, $mailnum);
