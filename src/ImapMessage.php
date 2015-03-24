@@ -98,9 +98,10 @@ class ImapMessage
     /**
      * @param int $section
      * @param int $encoding [optional]
+     * @param bool $encode [optional]
      * @return mixed
      */
-    public function getBodySectionText($section, $encoding = NULL)
+    public function getBodySectionText($section, $encoding = NULL, $encode = TRUE)
     {
         $text = $this->getBodySection($section);
         $encoding = $encoding ? $encoding : (isset($this->structure->parts[$section]) ? $this->structure->parts[$section]->encoding : $this->structure->encoding);
@@ -135,7 +136,11 @@ class ImapMessage
                 $etext = $text;
         }
 
-        return iconv(mb_detect_encoding($etext, mb_detect_order(), TRUE), "UTF-8", $etext);
+        if ($encode) {
+        	return iconv(mb_detect_encoding($etext, mb_detect_order(), TRUE), "UTF-8//TRANSLIT", $etext);
+        } else {
+        	return $etext;
+        }
     }
 
     /**
