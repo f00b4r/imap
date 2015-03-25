@@ -196,6 +196,10 @@ final class ImapReader
      */
     protected function disconnect()
     {
+        // Flush all messages out
+        imap_errors();
+        imap_alerts();
+        
         imap_close($this->imap);
     }
 }

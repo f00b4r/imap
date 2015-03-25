@@ -2,6 +2,7 @@
 
 namespace Minetro\Imap;
 
+use Nette\InvalidArgumentException;
 use stdClass;
 
 /**
@@ -40,7 +41,10 @@ class ImapMessage
     function __construct($number, $headers, $structure, array $body)
     {
         $this->number = $number;
-        $this->headers = $headers;
+
+        // Convert all headers to UTF-8
+        $this->headers = $this->utf8($headers);
+
         $this->structure = $structure;
         $this->body = $body;
     }
@@ -85,6 +89,7 @@ class ImapMessage
     /**
      * @param int $section
      * @return mixed
+     * @throws InvalidArgumentException
      */
     public function getBodySection($section)
     {
@@ -96,12 +101,13 @@ class ImapMessage
     }
 
     /**
+     * Returns text of the e-mail converted to utf-8.
+     *
      * @param int $section
      * @param int $encoding [optional]
-     * @param bool $encode [optional]
-     * @return mixed
+     * @return string
      */
-    public function getBodySectionText($section, $encoding = NULL, $encode = TRUE)
+    public function getBodySectionText($section, $encoding = NULL)
     {
         $text = $this->getBodySection($section);
         $encoding = $encoding ? $encoding : (isset($this->structure->parts[$section]) ? $this->structure->parts[$section]->encoding : $this->structure->encoding);
@@ -136,11 +142,28 @@ class ImapMessage
                 $etext = $text;
         }
 
-        if ($encode) {
-        	return iconv(mb_detect_encoding($etext, mb_detect_order(), TRUE), "UTF-8//TRANSLIT", $etext);
+        $charset = $this->getBodyCharset($section);
+        $charset = $charset ?: mb_detect_encoding($etext, mb_detect_order(), TRUE);
+        if ($charset === FALSE) {
+            return $etext;
         } else {
-        	return $etext;
+            return iconv($charset, "UTF-8//TRANSLIT", $etext);
         }
+    }
+
+    /**
+     * Returns charset defined in e-mail headers.
+     *
+     * @return string|NULL
+     */
+    public function getBodyCharset()
+    {
+        foreach ($this->structure->parameters as $pair) {
+            if (isset($pair->attribute) && $pair->attribute == 'charset') {
+                return $pair->value;
+            }
+        }
+        return NULL;
     }
 
     /**
@@ -149,5 +172,25 @@ class ImapMessage
     public function countBodies()
     {
         return count($this->body);
+    }
+
+
+    /**
+     * HELPERS *****************************************************************
+     * *************************************************************************
+     */
+
+    /**
+     * @param mixed $data
+     * @return stdClass
+     */
+    private function utf8($data)
+    {
+        $array = json_decode(json_encode($data), TRUE);
+        array_walk_recursive($array, function ($v, $k) {
+            return is_array($v) ? $v : imap_utf8($v);
+        });
+
+        return json_decode(json_encode($array));
     }
 }
