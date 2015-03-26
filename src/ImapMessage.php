@@ -107,42 +107,41 @@ class ImapMessage
      * @param int $encoding [optional]
      * @return string
      */
-    public function getBodySectionText($section, $encoding = NULL)
+    public function getBodySectionText($section)
     {
-        $text = $this->getBodySection($section);
-        $encoding = $encoding ? $encoding : (isset($this->structure->parts[$section]) ? $this->structure->parts[$section]->encoding : $this->structure->encoding);
+        extract($this->getBodySection($section));
 
         switch ($encoding) {
             # 7BIT
             case 0:
-                $etext = $text;
+                $etext = $content;
                 break;
             # 8BIT
             case 1:
-                $etext = quoted_printable_decode(imap_8bit($text));
+                $etext = quoted_printable_decode(imap_8bit($content));
                 break;
             # BINARY
             case 2:
-                $etext = imap_binary($text);
+                $etext = imap_binary($content);
                 break;
             # BASE64
             case 3:
-                $etext = imap_base64($text);
+                $etext = imap_base64($content);
                 break;
             # QUOTED-PRINTABLE
             case 4:
-                $etext = quoted_printable_decode($text);
+                $etext = quoted_printable_decode($content);
                 break;
             # OTHER
             case 5:
-                $etext = $text;
+                $etext = $content;
                 break;
             # UNKNOWN
             default:
-                $etext = $text;
+                $etext = $content;
         }
 
-        $charset = $this->getBodyCharset($section);
+        $charset = $this->getBodyCharset();
         $charset = $charset ?: mb_detect_encoding($etext, mb_detect_order(), TRUE);
         if ($charset === FALSE) {
             return $etext;
@@ -176,6 +175,64 @@ class ImapMessage
 
 
     /**
+     * @return string
+     */
+    public function getText()
+    {
+        $text = "";
+
+        foreach($this->body as $section=>$body) {
+            extract($body);
+            if($type == 0 && $subtype == "PLAIN") {
+                $text .= $this->getBodySectionText($section);
+            }
+        }
+
+        if(!$text)
+            $text = html_entity_decode(strip_tags($this->getHtml()));
+
+        return $text;
+    }
+
+    /**
+     * @return string
+     */
+    public function getHtml()
+    {
+        $text = "";
+
+        foreach($this->body as $section=>$body) {
+            extract($body);
+            if($type == 0 && $subtype == "HTML") {
+                $text .= $this->getBodySectionText($section);
+            }
+        }
+
+        if(!$text)
+            $text = $this->getText();
+
+        return $text;
+    }
+
+    /**
+     * @return array
+     */
+    public function getAttachments()
+    {
+        $attachments = [];
+
+        foreach($this->body as $section=>$body) {
+            extract($body);
+            if($type > 0 ) {
+                $attachments[$filename] = $this->getBodySectionText($section);
+            }
+        }
+
+        return $attachments;
+    }
+
+
+    /**
      * HELPERS *****************************************************************
      * *************************************************************************
      */
@@ -187,8 +244,26 @@ class ImapMessage
     private function utf8($data)
     {
         $array = json_decode(json_encode($data), TRUE);
-        array_walk_recursive($array, function ($v, $k) {
-            return is_array($v) ? $v : imap_utf8($v);
+
+        array_walk_recursive($array, function (&$value, $k) {
+            if(!is_array($value)) {
+
+                $decodedValue = imap_mime_header_decode($value);
+
+                if (is_array($decodedValue)) {
+
+                    $value = "";
+                    
+                    foreach ($decodedValue as $item) {
+                        $charset = $item->charset;
+                        if ($charset!="utf-8" && $charset!="utf8" && $charset!="default") {
+                            $value .= iconv($charset, "utf-8", $item->text);
+                        } else {
+                            $value .= $item->text;
+                        }
+                    }
+                }
+            }
         });
 
         return json_decode(json_encode($array));
