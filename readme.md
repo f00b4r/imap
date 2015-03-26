@@ -22,15 +22,14 @@ $emails = $reader->read(ImapReader::CRITERIA_UNSEEN);
 
 // Iterate all emails
 foreach ($emails as $email) {
-    
-    // Iterate all email parts
-    for ($i = 0; $i < $email->countBodies(); $i++) {
-        
-        // Get text (encode with right encoding..)
-        $text = $email->getBodySectionText($i);
-        
-        echo $text;
-    }
+
+	$headers = $email->getHeaders();	
+	
+	echo "From: ". $headers->fromaddress."\n";
+	echo "Subject: ". $headers->subject."\n";
+	echo "Date: ". $headers->date."\n";
+	
+	echo $email->getText();
 }
 ```
 
