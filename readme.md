@@ -1,9 +1,7 @@
 # Imap
 
-[![Build Status](https://travis-ci.org/minetro/imap.svg?branch=master)](https://travis-ci.org/minetro/imap)
-[![Downloads this Month](https://img.shields.io/packagist/dm/minetro/imap.svg?style=flat)](https://packagist.org/packages/minetro/imap)
+[![Downloads total](https://img.shields.io/packagist/dt/minetro/imap.svg?style=flat)](https://packagist.org/packages/minetro/imap)
 [![Latest stable](https://img.shields.io/packagist/v/minetro/imap.svg?style=flat)](https://packagist.org/packages/minetro/imap)
-[![HHVM Status](https://img.shields.io/hhvm/minetro/imap.svg?style=flat)](http://hhvm.h4cc.de/package/minetro/imap)
 
 Simple IMAP wrapper.
 
