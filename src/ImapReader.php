@@ -199,7 +199,7 @@ final class ImapReader
         // Flush all messages out
         imap_errors();
         imap_alerts();
-        
+
         imap_close($this->imap);
     }
 }
