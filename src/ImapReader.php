@@ -60,8 +60,6 @@ final class ImapReader
         $this->mailbox = $mailbox;
         $this->username = $username;
         $this->password = $password;
-
-        $this->connect($mailbox, $username, $password);
     }
 
     /**
@@ -92,9 +90,14 @@ final class ImapReader
      * @param int $options
      * @return ImapMessage[]
      */
-    public function read($criteria = 'ALL', $options = SE_FREE)
+    public function read($search_criteria = 'ALL', $options = SE_FREE, $sort_criteria = SORTARRIVAL, $sort_reverse = 0)
     {
-        $mails = imap_search($this->imap, $criteria, $options);
+    	if(!$this->imap) {
+			$this->connect($this->mailbox, $this->username, $this->password);
+		}
+    	
+        //$mails = imap_search($this->imap, $criteria, $options);
+        $mails = imap_sort($this->imap, $sort_criteria, $sort_reverse, $options, $search_criteria);
         if (!$mails) return [];
 
         $emails = [];
@@ -104,12 +107,58 @@ final class ImapReader
             if (!$structure || !$headers) continue;
 
             $sections = [];
-            if (isset($structure->parts)) {
-                foreach ($structure->parts as $partnum => $part) {
-                    $sections[] = imap_fetchbody($this->imap, $mailnum, $partnum);
+            /*
+            echo "<pre>";
+            
+            echo $headers->subject." ".$headers->date."\n";
+            
+            echo "Parts:";
+            print_r($structure->parts);
+            */
+            
+            if(isset($structure->parts)) {
+				$flattenParts = $this->flattenParts($structure->parts);
+			} else {
+				$flattenParts = array(1=>$structure);
+			}
+			
+			/*
+			echo "flattenParts:";
+			print_r($flattenParts);
+			die;
+			*/ 
+            
+            foreach($flattenParts as $partnum => $part)
+            {
+                switch($part->type) {
+                    # MULTI-PART HEADERS, CAN IGNORE
+                    case 1:
+                    # ATTACHED MESSAGE HEADERS, CAN IGNORE
+                    case 2:
+                        break;
+
+                    # THE HTML OR PLAIN TEXT PART OF THE EMAIL
+                    case 0:
+                    # APPLICATION
+                    case 3:
+                    # AUDIO
+                    case 4:
+                    # IMAGE
+                    case 5:
+                    # VIDEO
+                    case 6:
+                    # OTHER
+                    case 7:
+                        $sections[] = array(
+                            'content'=>imap_fetchbody($this->imap, $mailnum, $partnum),
+                            'type'=>$part->type,
+                            'subtype'=>$part->subtype,
+                            'encoding'=>$part->encoding,
+                            'charset'=>$this->getBodyCharset($part),
+                            'filename'=>$this->getFilenameFromPart($part),
+                        );
+                        break;
                 }
-            } else {
-                $sections[] = imap_body($this->imap, $mailnum);
             }
 
             $emails[] = new ImapMessage($mailnum, $headers, $structure, $sections);
@@ -178,6 +227,78 @@ final class ImapReader
      * HELPERS *****************************************************************
      * *************************************************************************
      */
+
+    /**
+     * Flatten parts of message to array
+     *
+     * @param array $messageParts
+     * @param array $flattenedParts
+     * @param string $prefix
+     * @param int $index
+     * @param bool $fullPrefix
+     * @return array
+     */
+    private function flattenParts($messageParts, $flattenedParts = array(), $prefix = '', $index = 1, $fullPrefix = true) 
+    {
+        foreach($messageParts as $part)
+		{
+            $flattenedParts[$prefix.$index] = $part;
+            if(isset($part->parts)) {
+                if($part->type == 2) {
+                    $flattenedParts = $this->flattenParts($part->parts, $flattenedParts, $prefix.$index.'.', 0, false);
+                }
+                elseif($fullPrefix) {
+                    $flattenedParts = $this->flattenParts($part->parts, $flattenedParts, $prefix.$index.'.');
+                }
+                else {
+                    $flattenedParts = $this->flattenParts($part->parts, $flattenedParts, $prefix);
+                }
+                unset($flattenedParts[$prefix.$index]->parts);
+            }
+            $index++;
+        }
+    
+        return $flattenedParts;
+    }
+
+    function getFilenameFromPart($part)
+    {
+        $filename = '';
+        
+        if($part->ifdparameters) {
+            foreach($part->dparameters as $object) {
+                if(strtolower($object->attribute) == 'filename') {
+                    $filename = $object->value;
+                }
+            }
+        }
+
+        if(!$filename && $part->ifparameters) {
+            foreach($part->parameters as $object) {
+                if(strtolower($object->attribute) == 'name') {
+                    $filename = $object->value;
+                }
+            }
+        }
+        
+        return $filename;
+    }
+    
+
+    /**
+     * Returns charset defined in e-mail headers.
+     *
+     * @return string|NULL
+     */
+    public function getBodyCharset($part)
+    {
+		foreach ($part->parameters as $pair) {
+            if (isset($pair->attribute) && $pair->attribute == 'charset') {
+                return $pair->value;
+            }
+        }
+        return NULL;
+    }
 
     /**
      * Connect to IMAP mailbox
